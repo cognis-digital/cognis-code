@@ -56,7 +56,7 @@ flowchart LR
 `coder` (Qwen2.5-Coder, abliterated) · `coder-big` (32B) · `reasoner` (DeepSeek-R1, abliterated) · `commander` (Josiefied-Qwen3-8B-abliterated). Powered by [uncensored-fleet](https://github.com/cognis-digital/uncensored-fleet) or plain Ollama.
 
 ## Related
-[🤖 uncensored-fleet](https://github.com/cognis-digital/uncensored-fleet) · [🧠 hermes](https://github.com/cognis-digital/hermes) · [🔧 mcpify](https://github.com/cognis-digital/mcpify) · [🗂️ the suite](https://github.com/cognis-digital/cognis-neural-suite)
+[🤖 uncensored-fleet](https://github.com/cognis-digital/uncensored-fleet) · [🧠 engram](https://github.com/cognis-digital/engram) · [🔧 mcpify](https://github.com/cognis-digital/mcpify) · [🗂️ the suite](https://github.com/cognis-digital/cognis-neural-suite)
 
 > ### ⭐ Star it — own your coding AI, uncensored and local.
 
