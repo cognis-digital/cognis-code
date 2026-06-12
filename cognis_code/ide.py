@@ -5,7 +5,7 @@ so the same uncensored coder/reasoner powers VS Code, JetBrains, Cursor, Zed, Ne
 opencode, and Aider.
 """
 from __future__ import annotations
-import json, os
+import json
 from pathlib import Path
 from cognis_code.models import resolve, DEFAULT_ENDPOINT
 

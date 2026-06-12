@@ -1,6 +1,6 @@
 """cognis-code CLI — install + wire a local uncensored coding suite into every IDE."""
 from __future__ import annotations
-import argparse, json, sys
+import argparse, sys
 from cognis_code import TOOL_NAME, TOOL_VERSION
 from cognis_code.ide import write_ide_config, IDES
 from cognis_code import serve as _serve

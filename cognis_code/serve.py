@@ -1,7 +1,7 @@
 """Start a local OpenAI-compatible coding endpoint via Ollama (or defer to uncensored-fleet)."""
 from __future__ import annotations
 import shutil, subprocess
-from cognis_code.models import MODELS, resolve
+from cognis_code.models import resolve
 
 def pull(role: str = "coder", uncensored: bool = True) -> int:
     tag = resolve(role, uncensored)
