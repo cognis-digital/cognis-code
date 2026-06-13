@@ -21,6 +21,16 @@ Download once, point **VS Code, JetBrains, Cursor, Zed, Neovim, [opencode](https
 cognis-code is a command-line tool that connects a local AI model running on your own machine to popular code editors like VS Code, Cursor, Zed, and Neovim. Instead of sending your code to a cloud service, every AI suggestion stays entirely on your computer — nothing leaves your machine. You run one command to set it up, and your editor immediately gains an AI coding assistant powered by a locally running model you control. It is for developers who want AI code help without relying on subscriptions, internet access, or sharing their code with third-party servers.
 <!-- cognis:layman:end -->
 
+<!-- cognis:domains:start -->
+## Domains
+
+**Primary domain:** AI & ML  ·  **JTF MERIDIAN division:** ATHENA-PRIME · SAGE
+
+**Topics:** `cognis` `ai` `llm` `machine-learning`
+
+Part of the **Cognis Neural Suite** — 300+ source-available tools organized across 12 domains under the JTF MERIDIAN command structure. See the [suite on GitHub](https://github.com/cognis-digital) and [jtf-meridian](https://github.com/cognis-digital/jtf-meridian) for how the pieces fit together.
+<!-- cognis:domains:end -->
+
 <!-- cognis:install:start -->
 ## Install
 
