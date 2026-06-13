@@ -90,5 +90,11 @@ flowchart LR
 ## Responsible use
 Local, unrestricted models are powerful. Use lawfully and ethically; you own what you generate.
 
+## Interoperability
+
+`{}` composes with the 300+ tool Cognis suite — JSON in/out and a shared
+OpenAI-compatible `/v1` backbone. See **[INTEROP.md](INTEROP.md)** for the
+suite map, composition patterns, and reference stacks.
+
 ## License
 COCL v1.0 — see [LICENSE](LICENSE).
