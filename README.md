@@ -15,6 +15,48 @@
 
 Download once, point **VS Code, JetBrains, Cursor, Zed, Neovim, [opencode](https://github.com/sst/opencode), and Aider** at the same **local uncensored coder + reasoner**. A private, unrestricted Copilot you fully own.
 
+<!-- cognis:layman:start -->
+## What is this?
+
+cognis-code is a command-line tool that connects a local AI model running on your own machine to popular code editors like VS Code, Cursor, Zed, and Neovim. Instead of sending your code to a cloud service, every AI suggestion stays entirely on your computer — nothing leaves your machine. You run one command to set it up, and your editor immediately gains an AI coding assistant powered by a locally running model you control. It is for developers who want AI code help without relying on subscriptions, internet access, or sharing their code with third-party servers.
+<!-- cognis:layman:end -->
+
+<!-- cognis:install:start -->
+## Install
+
+`cognis-code` is source-available (not published to PyPI) — every method below installs
+straight from GitHub. Pick whichever you prefer; the one-line scripts auto-detect
+the best tool available on your machine.
+
+**One-liner (Linux / macOS):**
+```sh
+curl -fsSL https://raw.githubusercontent.com/cognis-digital/cognis-code/HEAD/install.sh | sh
+```
+
+**One-liner (Windows PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/cognis-digital/cognis-code/HEAD/install.ps1 | iex
+```
+
+**Or install manually — any one of:**
+```sh
+pipx install "git+https://github.com/cognis-digital/cognis-code.git"     # isolated (recommended)
+uv tool install "git+https://github.com/cognis-digital/cognis-code.git"  # uv
+pip install "git+https://github.com/cognis-digital/cognis-code.git"      # pip
+```
+
+**From source:**
+```sh
+git clone https://github.com/cognis-digital/cognis-code.git
+cd cognis-code && pip install .
+```
+
+Then run:
+```sh
+cognis-code --help
+```
+<!-- cognis:install:end -->
+
 ## Install (every way)
 ```bash
 pip install "git+https://github.com/cognis-digital/cognis-code.git"   # or pipx / uv tool install
@@ -65,18 +107,28 @@ Every push is verified end-to-end. Latest audit (2026-06-13):
 ```text
 tests        : 2 passed, 0 failed, 0 errored
 compile      : all modules parse
-cli          : C:\Python314\python.exe: No module named https
-package      : https
+cli          : cognis-code --help (see below)
+package      : cognis_code
 ```
 
 <details><summary>CLI surface (<code>--help</code>)</summary>
 
 ```text
-C:\Python314\python.exe: No module named https
+usage: cognis-code [-h] [--version] {models,pull,serve,ide,doctor} ...
+
+Local uncensored coding suite — one endpoint, every IDE.
+
+positional arguments:
+  {models,pull,serve,ide,doctor}
+    models              list local model roles
+    pull                pull a model via Ollama
+    serve               serve the local OpenAI-compatible endpoint
+    ide                 write config for an IDE/agent (or 'all')
+    doctor              check the local setup
 ```
 </details>
 
-Full machine-readable results: [`AUDIT.md`](AUDIT.md) · regenerate with `python -m https --help` + `pytest -q`.
+Full machine-readable results: [`AUDIT.md`](AUDIT.md) · regenerate with `cognis-code --help` + `pytest -q`.
 
 <div align="right"><a href="#top">↑ back to top</a></div>
 

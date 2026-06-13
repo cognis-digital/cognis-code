@@ -11,8 +11,8 @@ Generated 2026-06-13 UTC.
   "tests_errored": 0,
   "has_tests": true,
   "pytest_tail": "..                                                                       [100%]\n2 passed in 0.19s",
-  "package": "https",
-  "cli_version": "C:\\Python314\\python.exe: No module named https",
+  "package": "cognis_code",
+  "cli_entrypoint": "cognis-code",
   "clean": true
 }
 ```
@@ -25,5 +25,7 @@ Generated 2026-06-13 UTC.
 
 ## CLI
 ```
-C:\Python314\python.exe: No module named https
+usage: cognis-code [-h] [--version] {models,pull,serve,ide,doctor} ...
+
+Local uncensored coding suite — one endpoint, every IDE.
 ```
