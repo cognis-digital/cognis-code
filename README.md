@@ -15,6 +15,33 @@
 
 Download once, point **VS Code, JetBrains, Cursor, Zed, Neovim, [opencode](https://github.com/sst/opencode), and Aider** at the same **local uncensored coder + reasoner**. A private, unrestricted Copilot you fully own.
 
+## Usage — step by step
+
+1. Install the CLI (console-script: `cognis-code`):
+   ```bash
+   pipx install "git+https://github.com/cognis-digital/cognis-code.git"
+   cognis-code --version
+   ```
+2. Check your local setup and list the model roles it expects:
+   ```bash
+   cognis-code doctor
+   cognis-code models
+   ```
+3. Pull a model (defaults to the `coder` role) and start the local OpenAI-compatible endpoint:
+   ```bash
+   cognis-code pull coder
+   cognis-code serve            # serves on http://localhost:11434/v1
+   ```
+4. Wire an IDE/agent to that endpoint (use `all` to write every supported config). Preview first with `--dry-run`:
+   ```bash
+   cognis-code ide all --endpoint http://localhost:11434/v1 --dry-run
+   cognis-code ide all
+   ```
+5. In CI, fail the job if the local setup is broken (`doctor` returns a non-zero exit on failure):
+   ```bash
+   cognis-code doctor || exit 1
+   ```
+
 ## Install (every way)
 ```bash
 pip install "git+https://github.com/cognis-digital/cognis-code.git"   # or pipx / uv tool install
