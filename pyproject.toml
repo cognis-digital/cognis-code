@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 [project]
 name = "cognis-code"
-version = "0.1.0"
+version = "0.1.1"
 description = "Local uncensored AI coding suite — one local endpoint wired into VS Code, JetBrains, Cursor, Zed, Neovim, opencode, and Aider"
 license = {text = "LicenseRef-COCL-1.0"}
 requires-python = ">=3.10"
@@ -11,11 +11,13 @@ readme = "README.md"
 keywords = ["ai","coding","local-llm","uncensored","ollama","opencode","aider","continue","ide","cognis-digital"]
 classifiers = ["Development Status :: 4 - Beta", "License :: Other/Proprietary License"]
 [project.optional-dependencies]
+connect = ["cognis-connect @ git+https://github.com/cognis-digital/cognis-connect.git"]
 dev = ["pytest>=8.0"]
 [project.urls]
 Homepage = "https://cognis.digital"
 Repository = "https://github.com/cognis-digital/cognis-code"
 [project.scripts]
+"cognis-code-emit" = "cognis_code.connect:emit_main"
 cognis-code = "cognis_code.cli:main"
 [tool.hatch.build.targets.wheel]
 packages = ["cognis_code"]
