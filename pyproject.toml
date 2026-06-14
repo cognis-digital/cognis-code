@@ -21,3 +21,6 @@ Repository = "https://github.com/cognis-digital/cognis-code"
 cognis-code = "cognis_code.cli:main"
 [tool.hatch.build.targets.wheel]
 packages = ["cognis_code"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
