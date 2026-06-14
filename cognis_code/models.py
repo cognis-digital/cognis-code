@@ -32,6 +32,28 @@ MODELS = {
 }
 DEFAULT_ENDPOINT = "http://localhost:11434/v1"   # Ollama OpenAI-compatible; or fleet ports
 
+_FALLBACK_ROLE = "coder"
+
+
 def resolve(role: str, uncensored: bool = True) -> str:
-    m = MODELS.get(role, MODELS["coder"])
+    """Return the model tag for *role*.
+
+    Raises ``ValueError`` for a completely empty/None role string so callers
+    get a clear error rather than a silent fallback to the wrong model.
+    Falls back to the ``coder`` role for unknown-but-non-empty names (preserving
+    the original lenient behaviour) and emits a warning on stderr.
+    """
+    if not role or not isinstance(role, str):
+        raise ValueError(f"role must be a non-empty string, got {role!r}")
+    if role.strip() != role:
+        role = role.strip()
+    m = MODELS.get(role)
+    if m is None:
+        import sys
+        print(
+            f"warning: unknown role {role!r}, falling back to '{_FALLBACK_ROLE}'. "
+            f"Known roles: {', '.join(MODELS)}",
+            file=sys.stderr,
+        )
+        m = MODELS[_FALLBACK_ROLE]
     return m.get("abliterated") if uncensored and m.get("abliterated") else m.get("ollama", "qwen2.5-coder:7b")
