@@ -15,6 +15,46 @@
 
 Download once, point **VS Code, JetBrains, Cursor, Zed, Neovim, [opencode](https://github.com/sst/opencode), and Aider** at the same **local uncensored coder + reasoner**. A private, unrestricted Copilot you fully own.
 
+
+<!-- cognis:example:start -->
+## 🔎 Example output
+
+Real, reproducible output from the tool — runs offline:
+
+```console
+$ cognis-code-emit --version
+cognis-code 0.1.0
+```
+
+```console
+$ cognis-code-emit --help
+usage: cognis-code [-h] [--version] {models,pull,serve,ide,doctor} ...
+
+Local uncensored coding suite — one endpoint, every IDE.
+
+positional arguments:
+  {models,pull,serve,ide,doctor}
+    models              list local model roles
+    pull                pull a model via Ollama
+    serve               serve the local OpenAI-compatible endpoint
+    ide                 write config for an IDE/agent (or 'all')
+    doctor              check the local setup
+
+options:
+  -h, --help            show this help message and exit
+  --version             show program's version number and exit
+```
+
+```console
+$ cognis-code-emit doctor
+ollama: found
+endpoint default: http://localhost:11434/v1
+```
+
+> Blocks above are real `cognis-code` output — reproduce them from a clone.
+
+<!-- cognis:example:end -->
+
 ## Usage — step by step
 
 1. Install the CLI (console-script: `cognis-code`):

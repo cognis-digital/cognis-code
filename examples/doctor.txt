@@ -1,0 +1,4 @@
+$ cognis-code-emit doctor
+
+ollama: found
+endpoint default: http://localhost:11434/v1

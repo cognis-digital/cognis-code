@@ -1,0 +1,17 @@
+$ cognis-code-emit --help
+
+usage: cognis-code [-h] [--version] {models,pull,serve,ide,doctor} ...
+
+Local uncensored coding suite — one endpoint, every IDE.
+
+positional arguments:
+  {models,pull,serve,ide,doctor}
+    models              list local model roles
+    pull                pull a model via Ollama
+    serve               serve the local OpenAI-compatible endpoint
+    ide                 write config for an IDE/agent (or 'all')
+    doctor              check the local setup
+
+options:
+  -h, --help            show this help message and exit
+  --version             show program's version number and exit

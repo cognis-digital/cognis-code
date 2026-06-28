@@ -1,0 +1,3 @@
+$ cognis-code-emit --version
+
+cognis-code 0.1.0
