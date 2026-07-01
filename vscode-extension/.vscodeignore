@@ -1,0 +1,6 @@
+*.vsix
+.git/**
+.vscode/**
+**/*.map
+PUBLISHING.md
+.gitignore
