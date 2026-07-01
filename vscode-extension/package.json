@@ -1,0 +1,58 @@
+{
+  "name": "cognis-code",
+  "displayName": "Cognis Code — local uncensored AI agent",
+  "description": "A private, uncensored, fully-local coding agent in VS Code. Runs on your own fleet (Ollama/llama.cpp), builds and runs shell commands intelligently, edits files, and loads only the relevant repos/MCPs into context. No cloud, no keys, no limits.",
+  "version": "0.1.0",
+  "publisher": "cognis-digital",
+  "icon": "media/icon.png",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": { "type": "git", "url": "https://github.com/cognis-digital/cognis-code" },
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["AI", "Machine Learning", "Programming Languages", "Other"],
+  "keywords": ["ai", "agent", "local", "uncensored", "ollama", "copilot", "claude-code", "opencode"],
+  "activationEvents": [],
+  "main": "./extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        { "id": "cognisCode", "title": "Cognis Code", "icon": "media/icon.svg" }
+      ]
+    },
+    "views": {
+      "cognisCode": [
+        { "type": "webview", "id": "cognisCode.chat", "name": "Agent" }
+      ]
+    },
+    "commands": [
+      { "command": "cognisCode.ask", "title": "Cognis Code: Ask" },
+      { "command": "cognisCode.agent", "title": "Cognis Code: Run Agent Task" },
+      { "command": "cognisCode.explain", "title": "Cognis Code: Explain Selection" },
+      { "command": "cognisCode.edit", "title": "Cognis Code: Edit Selection with Instruction" },
+      { "command": "cognisCode.toggleAutonomous", "title": "Cognis Code: Toggle Autonomous Execution" }
+    ],
+    "keybindings": [
+      { "command": "cognisCode.ask", "key": "ctrl+alt+c", "when": "editorTextFocus" }
+    ],
+    "configuration": {
+      "title": "Cognis Code",
+      "properties": {
+        "cognisCode.endpoint": { "type": "string", "default": "http://127.0.0.1:11434",
+          "description": "Local fleet endpoint (Ollama /api/chat or cognis-code serve)." },
+        "cognisCode.model": { "type": "string",
+          "default": "zfujicute/OmniCoder-Qwen3.5-9B-Claude-4.6-Opus-Uncensored-v2-GGUF:latest",
+          "description": "Local model to use." },
+        "cognisCode.autonomous": { "type": "boolean", "default": false,
+          "description": "If true, the agent runs proposed shell commands automatically (guarded). If false, you approve each." },
+        "cognisCode.capabilitiesCmd": { "type": "string",
+          "default": "python C:\\Users\\user\\cognis-control\\capabilities.py query",
+          "description": "Command that returns relevant repos/MCPs for intelligent context loading (blank to disable)." },
+        "cognisCode.maxSteps": { "type": "number", "default": 6,
+          "description": "Max agent tool-loop steps per task." }
+      }
+    }
+  },
+  "scripts": {
+    "package": "npx --yes @vscode/vsce package",
+    "publish": "npx --yes @vscode/vsce publish"
+  }
+}
