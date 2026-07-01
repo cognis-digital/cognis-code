@@ -36,8 +36,8 @@
         "canBeReferencedInPrompt": true, "toolReferenceName": "capability",
         "inputSchema": { "type": "object", "properties": { "task": { "type": "string" } }, "required": ["task"] } },
       { "name": "cognis_connector", "displayName": "Call a connector", "modelDescription":
-        "Call a configured connector (github, gmail, notion, slack, etc.). Returns API results.",
-        "inputSchema": { "type": "object", "properties": { "name": { "type": "string" }, "action": { "type": "string" } }, "required": ["name"] } }
+        "Call a connector's real action: github(whoami|list_repos|create_issue) slack(post) discord(post) notion(search) telegram(send) openweather(current) brave(search) gmail(send|list). Live API results.",
+        "inputSchema": { "type": "object", "properties": { "name": { "type": "string" }, "action": { "type": "string" }, "params": { "type": "object" } }, "required": ["name"] } }
     ],
     "viewsContainers": {
       "activitybar": [
@@ -67,8 +67,10 @@
         "cognisCode.model": { "type": "string",
           "default": "zfujicute/OmniCoder-Qwen3.5-9B-Claude-4.6-Opus-Uncensored-v2-GGUF:latest",
           "description": "Chat/reasoning model." },
-        "cognisCode.codeModel": { "type": "string", "default": "codellama:13b",
-          "description": "Code-specialized model for completions & edits (e.g. codellama:13b, qwen3-coder). Routes code work to the best local coder." },
+        "cognisCode.codeModel": { "type": "string", "default": "qwen/qwen3-coder-30b",
+          "description": "Code-specialized model for completions & edits. Default routes to the GPU coder (qwen3-coder-30b) via codeEndpoint; use 'codellama:13b' to keep it on Ollama." },
+        "cognisCode.codeEndpoint": { "type": "string", "default": "http://127.0.0.1:1234",
+          "description": "Endpoint for the code model. LM Studio (OpenAI :1234) for the GPU coder, or blank to reuse the main Ollama endpoint." },
         "cognisCode.verify": { "type": "boolean", "default": true,
           "description": "After the agent edits code, auto-run the detected test/build and feed failures back to fix (the coding-quality multiplier)." },
         "cognisCode.autonomous": { "type": "boolean", "default": false,

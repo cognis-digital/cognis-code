@@ -81,10 +81,27 @@ async function applyEdits(edits) {
   await vscode.workspace.applyEdit(we);
   return `applied ${edits.length} file edit(s): ${edits.map(e => e.path).join(', ')}`;
 }
-function callConnector(name, action) {
+function callConnector(name, action, params) {
+  const kv = Object.entries(params || {}).map(([k, v]) => `${k}="${String(v).replace(/"/g, '')}"`).join(' ');
   return new Promise((resolve) => exec(
-    `python C:\\Users\\user\\cognis-control\\connectors.py test ${name}`, { timeout: 15000 },
-    (e, out) => resolve(`connector ${name}: ${(out || String(e)).trim()}${action ? ' | action: ' + action + ' (wire endpoint)' : ''}`)));
+    `python C:\\Users\\user\\cognis-control\\connectors.py call ${name} ${action || ''} ${kv}`,
+    { timeout: 25000 }, (e, out) => resolve((out || String(e)).trim().slice(0, 1500))));
+}
+// code-specialized model, optionally on a different endpoint (LM Studio OpenAI :1234 for GPU coder)
+function codeFleet(messages, np) {
+  const ep = cfg().get('codeEndpoint') || cfg().get('endpoint');
+  const model = cfg().get('codeModel');
+  if (/\/v1|1234/.test(ep)) {  // OpenAI-compatible (LM Studio) — non-stream
+    return new Promise((resolve, reject) => {
+      const url = new URL((ep.includes('/v1') ? ep : ep + '/v1/chat/completions').replace(/\/$/, ''));
+      const body = JSON.stringify({ model, messages, max_tokens: np, temperature: 0.2, stream: false });
+      const r = http.request({ hostname: url.hostname, port: url.port, path: url.pathname, method: 'POST',
+        headers: { 'Content-Type': 'application/json' } }, (res) => { let d = ''; res.on('data', c => d += c);
+        res.on('end', () => { try { const j = JSON.parse(d); resolve((j.choices && j.choices[0].message.content) || ''); } catch (e) { reject(e); } }); });
+      r.on('error', reject); r.write(body); r.end();
+    });
+  }
+  return fleet(messages, np, model);  // else Ollama
 }
 
 // ---- agent loop (used by /agent and the agent command) --------------------
@@ -130,7 +147,7 @@ function activate(context) {
       const p = `You are a code completion engine for ${document.languageId}. Continue the code at <CURSOR>. ` +
         `Output ONLY the completion, no prose, no fences.\n\n${prefix}<CURSOR>${suffix}`;
       try {
-        const txt = await fleet([{ role: 'user', content: p }], 80, cfg().get('codeModel'));
+        const txt = await codeFleet([{ role: 'user', content: p }], 80);
         if (token.isCancellationRequested) return;
         const clean = txt.replace(/```[a-z]*\n?/gi, '').split('<CURSOR>')[0].trimEnd();
         return clean ? [new vscode.InlineCompletionItem(clean, new vscode.Range(position, position))] : undefined;
@@ -145,7 +162,7 @@ function activate(context) {
     if (request.command === 'edit') {
       const ed = vscode.window.activeTextEditor;
       const code = ed ? ed.document.getText(ed.selection) || ed.document.getText() : '';
-      const out = await fleet([{ role: 'user', content: `Rewrite this code per: "${q}". Output only the new code.\n\n${code}` }], 900);
+      const out = await codeFleet([{ role: 'user', content: `Rewrite this code per: "${q}". Output only the new code.\n\n${code}` }], 900);
       const m = out.replace(/```[a-z]*\n?/gi, '');
       if (ed) await applyEdits([{ path: vscode.workspace.asRelativePath(ed.document.uri), content: m }]);
       stream.markdown('Applied edit.'); return {};
@@ -170,7 +187,7 @@ function activate(context) {
   S.push(vscode.lm.registerTool('cognis_capability', tool((i) => new Promise((res) => {
     const out = vscode.window.createOutputChannel('Cognis Agent'); out.show();
     agentLoop(i.task, (t) => out.append(t)).then(() => res('capability run — see Cognis Agent output')); }))));
-  S.push(vscode.lm.registerTool('cognis_connector', tool((i) => callConnector(i.name, i.action))));
+  S.push(vscode.lm.registerTool('cognis_connector', tool((i) => callConnector(i.name, i.action, i.params))));
 
   // 4) COMMANDS
   S.push(
@@ -195,7 +212,7 @@ function activate(context) {
       const ed = vscode.window.activeTextEditor; if (!ed) return;
       const ins = await vscode.window.showInputBox({ prompt: 'Edit instruction for selection' }); if (!ins) return;
       const code = ed.document.getText(ed.selection) || ed.document.getText();
-      const out = (await fleet([{ role: 'user', content: `Rewrite per "${ins}". Output only code.\n\n${code}` }], 900)).replace(/```[a-z]*\n?/gi, '');
+      const out = (await codeFleet([{ role: 'user', content: `Rewrite per "${ins}". Output only code.\n\n${code}` }], 900)).replace(/```[a-z]*\n?/gi, '');
       await ed.edit((e) => e.replace(ed.selection.isEmpty ? new vscode.Range(0, 0, ed.document.lineCount, 0) : ed.selection, out));
     }),
     vscode.commands.registerCommand('cognisCode.toggleAutonomous', async () => {
