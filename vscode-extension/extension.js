@@ -33,12 +33,22 @@ function req(pathBody, onChunk) {
     r.on('error', reject); r.write(pathBody); r.end();
   });
 }
-function payload(messages, np, stream) {
-  return JSON.stringify({ model: cfg().get('model'), messages, stream: !!stream,
+function payload(messages, np, stream, model) {
+  return JSON.stringify({ model: model || cfg().get('model'), messages, stream: !!stream,
     options: { num_predict: np, temperature: 0.3 } });
 }
-const fleet = (messages, np = 700) => req(payload(messages, np, false));
-const streamFleet = (messages, onChunk, np = 900) => req(payload(messages, np, true), onChunk);
+const fleet = (messages, np = 700, model) => req(payload(messages, np, false, model));
+const streamFleet = (messages, onChunk, np = 900, model) => req(payload(messages, np, true, model), onChunk);
+const fs = require('fs'); const path = require('path');
+function detectVerify() {  // coding-quality multiplier: run the project's tests/build
+  const r = cwd(); const has = (f) => fs.existsSync(path.join(r, f));
+  if (has('pyproject.toml') || has('pytest.ini') || has('tests')) return 'python -m pytest -q';
+  if (has('package.json')) return 'npm test --silent';
+  if (has('Cargo.toml')) return 'cargo test -q';
+  if (has('go.mod')) return 'go test ./...';
+  if (has('Makefile')) return 'make test';
+  return null;
+}
 
 function loadCapabilities(query) {
   return new Promise((resolve) => {
@@ -91,6 +101,20 @@ async function agentLoop(task, emit) {
     emit(out.slice(0, 1200)); history += `$ ${command}\n${out.slice(0, 400)}\n`;
     if (out.startsWith('skipped') || out.startsWith('REFUSED')) return;
   }
+  // VERIFY: run the project's tests/build; if failing, one fleet-driven fix pass
+  if (cfg().get('verify')) {
+    const vcmd = detectVerify();
+    if (vcmd) {
+      emit(`\n▶ verify: ${vcmd}\n`); const vout = await runShell(vcmd, true); emit(vout.slice(0, 1200));
+      if (/fail|error|Error|FAILED|assert|Traceback/.test(vout)) {
+        emit('\n↻ fixing failures…\n');
+        const fix = await fleet([{ role: 'user', content:
+          `Task: ${task}\nTests failed:\n${vout.slice(-1500)}\nGive the SINGLE shell command to fix it in a \`\`\`sh\`\`\` block.` }], 250);
+        const fm = BLK.exec(fix); if (fm) { const fc = fm[1].trim().split('\n')[0].trim();
+          emit(`$ ${fc}\n`); emit((await runShell(fc)).slice(0, 1000)); }
+      } else emit('\n✓ verify passed'); return;
+    }
+  }
   emit('\n(max steps)');
 }
 
@@ -106,7 +130,7 @@ function activate(context) {
       const p = `You are a code completion engine for ${document.languageId}. Continue the code at <CURSOR>. ` +
         `Output ONLY the completion, no prose, no fences.\n\n${prefix}<CURSOR>${suffix}`;
       try {
-        const txt = await fleet([{ role: 'user', content: p }], 80);
+        const txt = await fleet([{ role: 'user', content: p }], 80, cfg().get('codeModel'));
         if (token.isCancellationRequested) return;
         const clean = txt.replace(/```[a-z]*\n?/gi, '').split('<CURSOR>')[0].trimEnd();
         return clean ? [new vscode.InlineCompletionItem(clean, new vscode.Range(position, position))] : undefined;
