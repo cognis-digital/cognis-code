@@ -5,6 +5,7 @@
   "version": "0.1.0",
   "publisher": "cognis-digital",
   "icon": "media/icon.png",
+  "galleryBanner": { "color": "#0d0a14", "theme": "dark" },
   "license": "SEE LICENSE IN LICENSE",
   "repository": { "type": "git", "url": "https://github.com/cognis-digital/cognis-code" },
   "engines": { "vscode": "^1.95.0" },
