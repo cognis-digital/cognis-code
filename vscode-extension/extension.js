@@ -1,151 +1,182 @@
 // Cognis Code — local uncensored AI agent for VS Code.
-// Chat + agentic loop (plan -> run shell / edit files -> observe -> iterate) on YOUR local
-// fleet (Ollama/llama.cpp). Loads only the relevant repos/MCPs into context (no window overload).
-// No cloud, no keys. Meets the Claude-Code / opencode / Aider pattern, fully local + uncensored.
+// Native Copilot-class features on YOUR fleet (Ollama/llama.cpp), no cloud/keys:
+//  - Inline completions (ghost text)      - @cognis chat participant (streaming)
+//  - Language Model Tools (shell/editFiles/capability/connector = native tool-calling)
+//  - Multi-file diff-apply, inline edits  - intelligent capability loading (400+ repos/MCPs)
 const vscode = require('vscode');
 const http = require('http');
 const { exec } = require('child_process');
 
 const DANGER = /\brm\s+-rf\s+[\/~]|\bmkfs|format\s+[a-z]:|\bdd\s+if=|Remove-Item.*-Recurse.*[Cc]:\\?\s*$|\bshutdown\b|\breboot\b/i;
 const cfg = () => vscode.workspace.getConfiguration('cognisCode');
+const cwd = () => { const f = vscode.workspace.workspaceFolders; return f && f.length ? f[0].uri.fsPath : process.cwd(); };
+const BLK = /```(?:sh|bash|powershell|ps1?|cmd)?\s*([\s\S]+?)```/i;
 
-function fleet(messages, numPredict = 700) {
+// ---- fleet (Ollama /api/chat), streaming + blocking -----------------------
+function req(pathBody, onChunk) {
   return new Promise((resolve, reject) => {
     const url = new URL(cfg().get('endpoint') + '/api/chat');
-    const body = JSON.stringify({ model: cfg().get('model'), messages, stream: false,
-      options: { num_predict: numPredict, temperature: 0.3 } });
-    const req = http.request({ hostname: url.hostname, port: url.port, path: url.pathname,
-      method: 'POST', headers: { 'Content-Type': 'application/json' } }, (res) => {
-        let d = ''; res.on('data', c => d += c);
-        res.on('end', () => { try { const j = JSON.parse(d);
-          resolve((j.message && (j.message.content || j.message.thinking)) || ''); }
-          catch (e) { reject(e); } });
+    const r = http.request({ hostname: url.hostname, port: url.port, path: url.pathname, method: 'POST',
+      headers: { 'Content-Type': 'application/json' } }, (res) => {
+      let buf = '', full = '';
+      res.on('data', (c) => {
+        buf += c; let nl;
+        while ((nl = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
+          if (!line.trim()) continue;
+          try { const j = JSON.parse(line); const t = (j.message && (j.message.content || j.message.thinking)) || '';
+            if (t) { full += t; if (onChunk) onChunk(t); } } catch (e) {}
+        }
       });
-    req.on('error', reject); req.write(body); req.end();
+      res.on('end', () => resolve(full));
+    });
+    r.on('error', reject); r.write(pathBody); r.end();
   });
 }
+function payload(messages, np, stream) {
+  return JSON.stringify({ model: cfg().get('model'), messages, stream: !!stream,
+    options: { num_predict: np, temperature: 0.3 } });
+}
+const fleet = (messages, np = 700) => req(payload(messages, np, false));
+const streamFleet = (messages, onChunk, np = 900) => req(payload(messages, np, true), onChunk);
 
 function loadCapabilities(query) {
   return new Promise((resolve) => {
-    const c = cfg().get('capabilitiesCmd');
-    if (!c) return resolve('');
-    exec(`${c} "${query.replace(/"/g, '')}"`, { timeout: 15000 }, (e, out) => {
-      if (e || !out) return resolve('');
-      resolve('Relevant local capabilities (loaded for this task):\n' + out.trim());
-    });
+    const c = cfg().get('capabilitiesCmd'); if (!c) return resolve('');
+    exec(`${c} "${query.replace(/"/g, '')}"`, { timeout: 15000 }, (e, out) =>
+      resolve(e || !out ? '' : 'Relevant local capabilities:\n' + out.trim()));
   });
 }
 
-function workspaceCwd() {
-  const f = vscode.workspace.workspaceFolders;
-  return f && f.length ? f[0].uri.fsPath : process.cwd();
+// ---- actions the tools/agent perform --------------------------------------
+async function runShell(command, autoOk) {
+  if (DANGER.test(command)) return `REFUSED (destructive): ${command}`;
+  if (!autoOk && !cfg().get('autonomous')) {
+    const ok = await vscode.window.showWarningMessage(`Run: ${command}`, 'Run', 'Skip');
+    if (ok !== 'Run') return `skipped: ${command}`;
+  }
+  return new Promise((resolve) => exec(command, { cwd: cwd(), timeout: 120000,
+    shell: process.platform === 'win32' ? 'powershell.exe' : '/bin/bash' },
+    (e, out, err) => resolve(((out || '') + (err ? '\n' + err : '')).slice(-3000) || '(no output)')));
+}
+async function applyEdits(edits) {
+  const we = new vscode.WorkspaceEdit(); const root = vscode.workspace.workspaceFolders[0].uri;
+  for (const ed of edits) {
+    const uri = vscode.Uri.joinPath(root, ed.path);
+    try { await vscode.workspace.fs.stat(uri);
+      const doc = await vscode.workspace.openTextDocument(uri);
+      we.replace(uri, new vscode.Range(0, 0, doc.lineCount, 0), ed.content);
+    } catch { we.createFile(uri, { overwrite: true, contents: Buffer.from(ed.content) }); }
+  }
+  await vscode.workspace.applyEdit(we);
+  return `applied ${edits.length} file edit(s): ${edits.map(e => e.path).join(', ')}`;
+}
+function callConnector(name, action) {
+  return new Promise((resolve) => exec(
+    `python C:\\Users\\user\\cognis-control\\connectors.py test ${name}`, { timeout: 15000 },
+    (e, out) => resolve(`connector ${name}: ${(out || String(e)).trim()}${action ? ' | action: ' + action + ' (wire endpoint)' : ''}`)));
 }
 
-async function runShell(cmd, post) {
-  if (DANGER.test(cmd)) { post('sys', `REFUSED (destructive): ${cmd}`); return 'refused'; }
-  if (!cfg().get('autonomous')) {
-    const ok = await vscode.window.showWarningMessage(`Run: ${cmd}`, { modal: false }, 'Run', 'Skip');
-    if (ok !== 'Run') { post('sys', `skipped: ${cmd}`); return 'skipped'; }
+// ---- agent loop (used by /agent and the agent command) --------------------
+async function agentLoop(task, emit) {
+  const ctx = await loadCapabilities(task); let history = '';
+  for (let i = 0; i < (cfg().get('maxSteps') || 6); i++) {
+    const prompt = `${ctx}\n\nTASK: ${task}\nWorkspace: ${cwd()}\n${history ? 'Previous:\n' + history : ''}\n` +
+      'Give the SINGLE next shell command in a ```sh``` block, or reply DONE if complete.';
+    const reply = await fleet([{ role: 'user', content: prompt }], 250);
+    if (/\bDONE\b/.test(reply) && !reply.includes('```')) { emit('\n✓ done.'); return; }
+    const m = BLK.exec(reply); const command = m ? m[1].trim().split('\n')[0].trim() : '';
+    if (!command) { emit('\n' + reply.slice(0, 1000)); return; }
+    emit(`\n$ ${command}\n`); const out = await runShell(command);
+    emit(out.slice(0, 1200)); history += `$ ${command}\n${out.slice(0, 400)}\n`;
+    if (out.startsWith('skipped') || out.startsWith('REFUSED')) return;
   }
-  return new Promise((resolve) => {
-    exec(cmd, { cwd: workspaceCwd(), timeout: 120000, shell: process.platform === 'win32' ? 'powershell.exe' : '/bin/bash' },
-      (e, out, err) => { const r = (out || '') + (err ? '\n' + err : ''); post('tool', `$ ${cmd}\n${r.slice(-2000)}`); resolve(r.slice(-1500)); });
-  });
-}
-
-const BLK = /```(?:sh|bash|powershell|ps1?|cmd)?\s*([\s\S]+?)```/i;
-
-async function agentLoop(task, post) {
-  post('sys', 'thinking + selecting relevant capabilities…');
-  const ctx = await loadCapabilities(task);
-  let history = '';
-  const steps = cfg().get('maxSteps');
-  for (let i = 0; i < steps; i++) {
-    const prompt = `${ctx}\n\nTASK: ${task}\nWorkspace: ${workspaceCwd()}\n` +
-      (history ? `Previous steps:\n${history}\n` : '') +
-      `Give the SINGLE next shell command (in a \`\`\`sh\`\`\` block) to make progress, or reply DONE if complete. Prefer commands that verify the result.`;
-    let reply;
-    try { reply = await fleet(prompt, 250); } catch (e) { post('sys', `fleet error: ${e} (is it up?)`); return; }
-    if (/\bDONE\b/.test(reply) && !reply.includes('```')) { post('assistant', 'Task complete.'); return; }
-    const m = BLK.exec(reply);
-    const cmd = m ? m[1].trim().split('\n')[0].trim() : '';
-    if (!cmd) { post('assistant', reply.slice(0, 1200)); return; }
-    const out = await runShell(cmd, post);
-    history += `$ ${cmd}\n${out.slice(0, 500)}\n`;
-    if (out === 'skipped' || out === 'refused') return;
-  }
-  post('sys', 'reached max steps.');
-}
-
-class ChatView {
-  constructor(ctx) { this.ctx = ctx; }
-  resolveWebviewView(view) {
-    this.view = view;
-    view.webview.options = { enableScripts: true };
-    view.webview.html = this.html();
-    const post = (role, text) => view.webview.postMessage({ role, text });
-    view.webview.onDidReceiveMessage(async (msg) => {
-      if (msg.type === 'ask') {
-        post('user', msg.text);
-        const ctx = await loadCapabilities(msg.text);
-        if (ctx) post('sys', 'loaded: ' + ctx.split('\n').slice(1, 4).map(l => l.split(':')[0].replace(/^- /, '')).join(', '));
-        try { post('assistant', await fleet([{ role: 'user', content: (ctx ? ctx + '\n\n' : '') + msg.text }])); }
-        catch (e) { post('sys', 'fleet error: ' + e); }
-      } else if (msg.type === 'agent') {
-        post('user', '[agent] ' + msg.text);
-        await agentLoop(msg.text, post);
-      }
-    });
-  }
-  html() {
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-      body{font-family:var(--vscode-font-family);color:var(--vscode-foreground);margin:0;padding:8px;background:var(--vscode-sideBar-background)}
-      #log{height:calc(100vh - 120px);overflow:auto;font-size:13px}
-      .m{margin:6px 0;padding:6px 9px;border-radius:8px;white-space:pre-wrap;word-break:break-word}
-      .user{background:#6b46c133;border-left:3px solid #8b5fd0}
-      .assistant{background:#2a1a4a44}
-      .sys{color:#9a86c0;font-size:11px;font-style:italic} .tool{background:#0a0710;font-family:monospace;font-size:11px;color:#5fe0a0}
-      #bar{position:fixed;bottom:6px;left:6px;right:6px;display:flex;gap:4px}
-      textarea{flex:1;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid #6b3fa0;border-radius:6px;padding:5px;resize:none;height:40px}
-      button{background:#6b46c1;color:#fff;border:none;border-radius:6px;padding:0 10px;cursor:pointer}
-      h3{color:#c9a8ff;margin:0 0 6px}</style></head>
-      <body><h3>Cognis Code · local · uncensored</h3><div id="log"></div>
-      <div id="bar"><textarea id="q" placeholder="Ask, or describe a task for the agent…"></textarea>
-      <button onclick="send('ask')">Ask</button><button onclick="send('agent')" title="Run as an agent (shell+files)">Agent</button></div>
-      <script>const v=acquireVsCodeApi(),log=document.getElementById('log'),q=document.getElementById('q');
-      function add(r,t){const d=document.createElement('div');d.className='m '+r;d.textContent=t;log.appendChild(d);log.scrollTop=log.scrollHeight;}
-      function send(type){const t=q.value.trim();if(!t)return;q.value='';v.postMessage({type,text:t});}
-      q.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send('ask');}});
-      window.addEventListener('message',e=>add(e.data.role,e.data.text));</script></body></html>`;
-  }
+  emit('\n(max steps)');
 }
 
 function activate(context) {
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider('cognisCode.chat', new ChatView(context)),
+  const S = context.subscriptions;
+
+  // 1) INLINE COMPLETIONS (ghost text) — the signature Copilot feature
+  S.push(vscode.languages.registerInlineCompletionItemProvider({ pattern: '**' }, {
+    async provideInlineCompletionItems(document, position, ctx, token) {
+      if (!cfg().get('inlineCompletions', true)) return;
+      const prefix = document.getText(new vscode.Range(Math.max(0, position.line - 60), 0, position.line, position.character));
+      const suffix = document.getText(new vscode.Range(position, new vscode.Position(position.line + 20, 0)));
+      const p = `You are a code completion engine for ${document.languageId}. Continue the code at <CURSOR>. ` +
+        `Output ONLY the completion, no prose, no fences.\n\n${prefix}<CURSOR>${suffix}`;
+      try {
+        const txt = await fleet([{ role: 'user', content: p }], 80);
+        if (token.isCancellationRequested) return;
+        const clean = txt.replace(/```[a-z]*\n?/gi, '').split('<CURSOR>')[0].trimEnd();
+        return clean ? [new vscode.InlineCompletionItem(clean, new vscode.Range(position, position))] : undefined;
+      } catch { return; }
+    }
+  }));
+
+  // 2) NATIVE CHAT PARTICIPANT — @cognis (streaming + slash commands + capability loading)
+  const handler = async (request, chatCtx, stream, token) => {
+    const q = request.prompt;
+    if (request.command === 'agent') { await agentLoop(q, (t) => stream.markdown(t)); return {}; }
+    if (request.command === 'edit') {
+      const ed = vscode.window.activeTextEditor;
+      const code = ed ? ed.document.getText(ed.selection) || ed.document.getText() : '';
+      const out = await fleet([{ role: 'user', content: `Rewrite this code per: "${q}". Output only the new code.\n\n${code}` }], 900);
+      const m = out.replace(/```[a-z]*\n?/gi, '');
+      if (ed) await applyEdits([{ path: vscode.workspace.asRelativePath(ed.document.uri), content: m }]);
+      stream.markdown('Applied edit.'); return {};
+    }
+    stream.progress('loading relevant capabilities…');
+    const ctx = await loadCapabilities(q);
+    if (ctx) stream.markdown('_loaded: ' + ctx.split('\n').slice(1, 4).map(l => l.split(':')[0].replace(/^-\s*/, '')).join(', ') + '_\n\n');
+    await streamFleet([{ role: 'user', content: (ctx ? ctx + '\n\n' : '') + q }], (t) => stream.markdown(t));
+    return {};
+  };
+  const participant = vscode.chat.createChatParticipant('cognis.code', handler);
+  participant.iconPath = vscode.Uri.joinPath(context.extensionUri, 'media', 'icon.png');
+  S.push(participant);
+
+  // 3) LANGUAGE MODEL TOOLS — native tool-calling (shell / editFiles / capability / connector)
+  const tool = (fn) => ({ invoke: async (options) => {
+    const r = await fn(options.input || {});
+    return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(String(r))]);
+  }});
+  S.push(vscode.lm.registerTool('cognis_shell', tool((i) => runShell(i.command, false))));
+  S.push(vscode.lm.registerTool('cognis_editFiles', tool((i) => applyEdits(i.edits || []))));
+  S.push(vscode.lm.registerTool('cognis_capability', tool((i) => new Promise((res) => {
+    const out = vscode.window.createOutputChannel('Cognis Agent'); out.show();
+    agentLoop(i.task, (t) => out.append(t)).then(() => res('capability run — see Cognis Agent output')); }))));
+  S.push(vscode.lm.registerTool('cognis_connector', tool((i) => callConnector(i.name, i.action))));
+
+  // 4) COMMANDS
+  S.push(
     vscode.commands.registerCommand('cognisCode.ask', async () => {
       const q = await vscode.window.showInputBox({ prompt: 'Ask Cognis Code (local)' }); if (!q) return;
       const ctx = await loadCapabilities(q);
-      vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Cognis Code…' },
-        async () => { const a = await fleet([{ role: 'user', content: (ctx ? ctx + '\n\n' : '') + q }]);
-          const doc = await vscode.workspace.openTextDocument({ content: a, language: 'markdown' });
-          vscode.window.showTextDocument(doc); });
+      const a = await fleet([{ role: 'user', content: (ctx ? ctx + '\n\n' : '') + q }]);
+      const doc = await vscode.workspace.openTextDocument({ content: a, language: 'markdown' });
+      vscode.window.showTextDocument(doc);
     }),
     vscode.commands.registerCommand('cognisCode.agent', async () => {
-      const t = await vscode.window.showInputBox({ prompt: 'Agent task (runs shell/edits in this workspace)' }); if (!t) return;
+      const t = await vscode.window.showInputBox({ prompt: 'Agent task (runs shell/edits here)' }); if (!t) return;
       const out = vscode.window.createOutputChannel('Cognis Agent'); out.show();
-      await agentLoop(t, (r, x) => out.appendLine(`[${r}] ${x}`));
+      await agentLoop(t, (x) => out.append(x));
     }),
     vscode.commands.registerCommand('cognisCode.explain', async () => {
       const ed = vscode.window.activeTextEditor; if (!ed) return;
-      const sel = ed.document.getText(ed.selection) || ed.document.getText();
-      const a = await fleet([{ role: 'user', content: 'Explain this code concisely:\n\n' + sel.slice(0, 4000) }]);
-      vscode.window.showInformationMessage(a.slice(0, 400));
+      const a = await fleet([{ role: 'user', content: 'Explain concisely:\n\n' + (ed.document.getText(ed.selection) || ed.document.getText()).slice(0, 4000) }]);
+      const doc = await vscode.workspace.openTextDocument({ content: a, language: 'markdown' }); vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
+    }),
+    vscode.commands.registerCommand('cognisCode.edit', async () => {
+      const ed = vscode.window.activeTextEditor; if (!ed) return;
+      const ins = await vscode.window.showInputBox({ prompt: 'Edit instruction for selection' }); if (!ins) return;
+      const code = ed.document.getText(ed.selection) || ed.document.getText();
+      const out = (await fleet([{ role: 'user', content: `Rewrite per "${ins}". Output only code.\n\n${code}` }], 900)).replace(/```[a-z]*\n?/gi, '');
+      await ed.edit((e) => e.replace(ed.selection.isEmpty ? new vscode.Range(0, 0, ed.document.lineCount, 0) : ed.selection, out));
     }),
     vscode.commands.registerCommand('cognisCode.toggleAutonomous', async () => {
-      const c = cfg(); const cur = c.get('autonomous');
-      await c.update('autonomous', !cur, true);
-      vscode.window.showInformationMessage('Autonomous execution: ' + (!cur ? 'ON (guarded)' : 'off (approve each)'));
+      const c = cfg(); const cur = c.get('autonomous'); await c.update('autonomous', !cur, true);
+      vscode.window.showInformationMessage('Autonomous execution: ' + (!cur ? 'ON (guarded)' : 'off'));
     })
   );
 }

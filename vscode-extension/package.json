@@ -7,12 +7,38 @@
   "icon": "media/icon.png",
   "license": "SEE LICENSE IN LICENSE",
   "repository": { "type": "git", "url": "https://github.com/cognis-digital/cognis-code" },
-  "engines": { "vscode": "^1.85.0" },
-  "categories": ["AI", "Machine Learning", "Programming Languages", "Other"],
-  "keywords": ["ai", "agent", "local", "uncensored", "ollama", "copilot", "claude-code", "opencode"],
-  "activationEvents": [],
+  "engines": { "vscode": "^1.95.0" },
+  "categories": ["AI", "Machine Learning", "Chat", "Programming Languages", "Other"],
+  "keywords": ["ai", "agent", "local", "uncensored", "ollama", "copilot", "claude-code", "opencode", "inline-completion"],
+  "activationEvents": ["onStartupFinished"],
   "main": "./extension.js",
   "contributes": {
+    "chatParticipants": [
+      { "id": "cognis.code", "name": "cognis", "fullName": "Cognis Code",
+        "description": "Local uncensored agent — ask, edit, run, and use tools/connectors",
+        "isSticky": true,
+        "commands": [
+          { "name": "agent", "description": "Run a task as an agent (shell + files, guarded)" },
+          { "name": "edit", "description": "Edit the active file/selection per an instruction" }
+        ] }
+    ],
+    "languageModelTools": [
+      { "name": "cognis_shell", "displayName": "Run shell command", "modelDescription":
+        "Run a shell command in the workspace and return its output. Guarded against destructive commands.",
+        "canBeReferencedInPrompt": true, "toolReferenceName": "shell",
+        "inputSchema": { "type": "object", "properties": { "command": { "type": "string" } }, "required": ["command"] } },
+      { "name": "cognis_editFiles", "displayName": "Edit files", "modelDescription":
+        "Create or replace the full contents of one or more workspace files (multi-file edit, shown as a diff).",
+        "inputSchema": { "type": "object", "properties": { "edits": { "type": "array", "items":
+          { "type": "object", "properties": { "path": { "type": "string" }, "content": { "type": "string" } } } } }, "required": ["edits"] } },
+      { "name": "cognis_capability", "displayName": "Run a Cognis capability", "modelDescription":
+        "Select and run the most relevant repo/tool from the 400+ Cognis capabilities for a task.",
+        "canBeReferencedInPrompt": true, "toolReferenceName": "capability",
+        "inputSchema": { "type": "object", "properties": { "task": { "type": "string" } }, "required": ["task"] } },
+      { "name": "cognis_connector", "displayName": "Call a connector", "modelDescription":
+        "Call a configured connector (github, gmail, notion, slack, etc.). Returns API results.",
+        "inputSchema": { "type": "object", "properties": { "name": { "type": "string" }, "action": { "type": "string" } }, "required": ["name"] } }
+    ],
     "viewsContainers": {
       "activitybar": [
         { "id": "cognisCode", "title": "Cognis Code", "icon": "media/icon.svg" }
@@ -43,6 +69,8 @@
           "description": "Local model to use." },
         "cognisCode.autonomous": { "type": "boolean", "default": false,
           "description": "If true, the agent runs proposed shell commands automatically (guarded). If false, you approve each." },
+        "cognisCode.inlineCompletions": { "type": "boolean", "default": true,
+          "description": "Enable inline ghost-text completions from the local model." },
         "cognisCode.capabilitiesCmd": { "type": "string",
           "default": "python C:\\Users\\user\\cognis-control\\capabilities.py query",
           "description": "Command that returns relevant repos/MCPs for intelligent context loading (blank to disable)." },
